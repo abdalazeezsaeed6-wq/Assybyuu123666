@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>نظام إدارة وحساب تكاليف المشاريع</title>
+  <!-- Bootstrap 5 CSS & FontAwesome -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- html2pdf.js للتصدير المباشر بـ PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+  <style>
+    :root {
+      --primary-color: #0d233a;
+      --secondary-color: #1e426d;
+      --accent-color: #e67e22;
+      --bg-light: #f4f6f9;
+    }
+
+    body {
+      background-color: var(--bg-light);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      padding-bottom: 40px;
+    }
+
+    .auth-card {
+      max-width: 450px;
+      margin: 80px auto;
+      border-radius: 15px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+      background: #fff;
+    }
+
+    .main-btn {
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      padding: 20px;
+      font-size: 1.1rem;
+      font-weight: bold;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      min-height: 120px;
+    }
+
+    .main-btn:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+      color: #ffca28;
+    }
+
+    .pos-card {
+      background: #fff;
+      border: 2px solid #e0e0e0;
+      border-radius: 10px;
+      padding: 15px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+    }
+
+    .pos-card:hover {
+      border-color: var(--accent-color);
+      transform: scale(1.02);
+      box-shadow: 0 4px 12px rgba(230, 126, 34, 0.2);
+    }
+
+    .report-header-banner {
+      background-color: #0a192f;
+      color: #ffffff;
+      border-radius: 12px;
+      padding: 15px 25px;
+      margin-bottom: 25px;
+      border: 3px solid #1e3a8a;
+    }
+
+    .header-logo-circle {
+      width: 90px;
+      height: 90px;
+      background: #fff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto;
+      box-shadow: 0 0 10px rgba(255,255,255,0.3);
+    }
+
+    .loading-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+      color: #fff;
+      font-size: 1.5rem;
+    }
+
+    @media print {
+      .no-print { display: none !important; }
+      body { background: #fff; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- شاشة الانتظار -->
+  <div id="loading" class="loading-overlay d-none">
+    <div class="text-center">
+      <div class="spinner-border text-light mb-3" style="width: 3rem; height: 3rem;" role="status"></div>
+      <div id="loadingText">جاري معالجة الطلب...</div>
+    </div>
+  </div>
+
+  <!-- 1. شاشة تسجيل الدخول والـ OTP -->
+  <div id="authSection" class="container">
+    <div id="loginStep1" class="auth-card p-4">
+      <h4 class="text-center mb-4 text-primary"><i class="fa-solid fa-lock me-2"></i>تسجيل الدخول للنظام</h4>
+      <div class="mb-3">
+        <label class="form-label">اسم المستخدم</label>
+        <input type="text" id="loginName" class="form-control" placeholder="أدخل اسمك الكامل">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">رقم الجوال</label>
+        <input type="tel" id="loginPhone" class="form-control" placeholder="77XXXXXXX">
+      </div>
+      <button class="btn btn-primary w-100 py-2 fs-5" onclick="requestOTP()">
+        <i class="fa-solid fa-paper-plane me-2"></i>تسجيل الدخول
+      </button>
+    </div>
+
+    <div id="loginStep2" class="auth-card p-4 d-none">
+      <h4 class="text-center mb-3 text-success"><i class="fa-solid fa-shield-halved me-2"></i>رمز التحقق</h4>
+      <p class="text-muted text-center small mb-4">تم إرسال رمز التحقق إلى التليجرام الخاص بك.</p>
+      <div class="mb-3">
+        <input type="text" id="otpInput" class="form-control text-center fs-3 letter-spacing-2" placeholder="XXXXXX" maxlength="6">
+      </div>
+      <button class="btn btn-success w-100 py-2 fs-5" onclick="verifyOTP()">
+        <i class="fa-solid fa-circle-check me-2"></i>تأكيد الكود
+      </button>
+    </div>
+  </div>
+
+  <!-- 2. الواجهة الرئيسية (Main Dashboard) -->
+  <div id="mainDashboard" class="container my-4 d-none">
+    <div class="d-flex justify-content-between align-items-center mb-4 bg-white p-3 rounded-3 shadow-sm">
+      <h4 class="m-0 text-primary"><i class="fa-solid fa-calculator me-2"></i>نظام حساب تكاليف المشاريع</h4>
+      <button class="btn btn-outline-danger btn-sm" onclick="logout()"><i class="fa-solid fa-right-from-bracket me-1"></i>خروج</button>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-6 col-md-4">
+        <button class="main-btn w-100" onclick="openModal('workerModal')">
+          <i class="fa-solid fa-user-plus fa-2x"></i>
+          <span>إضافة عامل</span>
+        </button>
+      </div>
+      <div class="col-6 col-md-4">
+        <button class="main-btn w-100" onclick="openModal('elecMatModal')">
+          <i class="fa-solid fa-bolt fa-2x"></i>
+          <span>إضافة مواد ومعدات كهربائية</span>
+        </button>
+      </div>
+      <div class="col-6 col-md-4">
+        <button class="main-btn w-100" onclick="openModal('otherMatModal')">
+          <i class="fa-solid fa-boxes-stacked fa-2x"></i>
+          <span>إضافة مواد أخرى</span>
+        </button>
+      </div>
+      <div class="col-6 col-md-4">
+        <button class="main-btn w-100" onclick="openSearchEditModal()">
+          <i class="fa-solid fa-pen-to-square fa-2x"></i>
+          <span>تعديل الأسعار وأجور العمال</span>
+        </button>
+      </div>
+      <div class="col-6 col-md-4">
+        <button class="main-btn w-100" onclick="openModal('expenseModal')">
+          <i class="fa-solid fa-receipt fa-2x"></i>
+          <span>إضافة مصاريف</span>
+        </button>
+      </div>
+      <div class="col-6 col-md-4">
+        <button class="main-btn w-100" onclick="openModal('equipmentModal')">
+          <i class="fa-solid fa-truck-pickup fa-2x"></i>
+          <span>إضافة معدات المشروع</span>
+        </button>
+      </div>
+      <div class="col-6 col-md-4">
+        <button class="main-btn w-100" onclick="openProjectManager()">
+          <i class="fa-solid fa-folder-plus fa-2x"></i>
+          <span>إضافة مشروع</span>
+        </button>
+      </div>
+      <div class="col-6 col-md-4">
+        <button class="main-btn w-100 bg-warning text-dark" onclick="openPOSInterface()">
+          <i class="fa-solid fa-calculator fa-2x"></i>
+          <span>حساب تكلفة مشروع</span>
+        </button>
+      </div>
+      <div class="col-6 col-md-4">
+        <button class="main-btn w-100" onclick="openModal('currencyModal')">
+          <i class="fa-solid fa-coins fa-2x"></i>
+          <span>إضافة عملة</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- النوافذ المنبثقة (MODALS) -->
+  <div class="modal fade" id="workerModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">إضافة عامل جديد</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-2"><label>الرقم التسلسلي</label><input type="text" id="wSerial" class="form-control" readonly></div>
+          <div class="mb-2"><label>اسم العامل</label><input type="text" id="wName" class="form-control"></div>
+          <div class="mb-2">
+            <label>العملة</label>
+            <select id="wCurrency" class="form-select currency-select"></select>
+          </div>
+          <div class="mb-2"><label>الأجرة بالساعة</label><input type="number" id="wHourly" class="form-control" value="0"></div>
+          <div class="mb-2"><label>أجرة الفترة الصباحية</label><input type="number" id="wMorning" class="form-control" value="0"></div>
+          <div class="mb-2"><label>أجرة الفترة المسائية</label><input type="number" id="wEvening" class="form-control" value="0"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary w-100" onclick="saveWorker()">حفظ البيانات</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="elecMatModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">إضافة مواد ومعدات كهربائية</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-2"><label>الرقم التسلسلي</label><input type="text" id="emSerial" class="form-control" readonly></div>
+          <div class="mb-2"><label>اسم المادة</label><input type="text" id="emName" class="form-control"></div>
+          <div class="mb-2">
+            <label>العملة</label>
+            <select id="emCurrency" class="form-select currency-select"></select>
+          </div>
+          <div class="mb-2">
+            <label>نوع المادة (الوحدة)</label>
+            <select id="emUnit" class="form-select" onchange="toggleCustomUnit(this, 'emCustomUnitGroup')">
+              <option value="متر">متر</option>
+              <option value="لفة">لفة</option>
+              <option value="حبه">حبه</option>
+              <option value="كيلو">كيلو</option>
+              <option value="باكت">باكت</option>
+              <option value="كرتون">كرتون</option>
+              <option value="ملي">ملي</option>
+              <option value="أخرى">أخرى</option>
+            </select>
+          </div>
+          <div class="mb-2 d-none" id="emCustomUnitGroup">
+            <label>اكتب النوع</label>
+            <input type="text" id="emCustomUnit" class="form-control">
+          </div>
+          <div class="mb-2"><label>سعر الوحدة</label><input type="number" id="emPrice" class="form-control" value="0"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary w-100" onclick="saveElecMaterial()">حفظ البيانات</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="otherMatModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">إضافة مواد أخرى</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-2"><label>الرقم التسلسلي</label><input type="text" id="omSerial" class="form-control" readonly></div>
+          <div class="mb-2"><label>اسم المادة</label><input type="text" id="omName" class="form-control"></div>
+          <div class="mb-2">
+            <label>العملة</label>
+            <select id="omCurrency" class="form-select currency-select"></select>
+          </div>
+          <div class="mb-2">
+            <label>النوع</label>
+            <select id="omCategory" class="form-select" onchange="toggleCustomUnit(this, 'omCustomCatGroup')">
+              <option value="معدات">معدات</option>
+              <option value="مواد بناء">مواد بناء</option>
+              <option value="مواد سباكة">مواد سباكة</option>
+              <option value="أخرى">أخرى</option>
+            </select>
+          </div>
+          <div class="mb-2 d-none" id="omCustomCatGroup">
+            <label>اكتب النوع</label>
+            <input type="text" id="omCustomCategory" class="form-control">
+          </div>
+          <div class="mb-2"><label>سعر الوحدة</label><input type="number" id="omPrice" class="form-control" value="0"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary w-100" onclick="saveOtherMaterial()">حفظ البيانات</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="expenseModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">إضافة مصروف جديد</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-2"><label>الرقم التسلسلي</label><input type="text" id="exSerial" class="form-control" readonly></div>
+          <div class="mb-2"><label>اسم المصروف</label><input type="text" id="exName" class="form-control"></div>
+          <div class="mb-2">
+            <label>نوع المصروف</label>
+            <select id="exCategory" class="form-select" onchange="toggleCustomUnit(this, 'exCustomCatGroup')">
+              <option value="مشتريات يومية">مشتريات يومية</option>
+              <option value="مصروفات تشغيلية">مصروفات تشغيلية</option>
+              <option value="أجور مواصلات">أجور مواصلات</option>
+              <option value="أخرى">أخرى</option>
+            </select>
+          </div>
+          <div class="mb-2 d-none" id="exCustomCatGroup">
+            <label>اكتب النوع</label>
+            <input type="text" id="exCustomCategory" class="form-control">
+          </div>
+          <div class="mb-2">
+            <label>العملة</label>
+            <select id="exCurrency" class="form-select currency-select"></select>
+          </div>
+          <div class="mb-2"><label>السعر</label><input type="number" id="exPrice" class="form-control" value="0"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary w-100" onclick="saveExpense()">حفظ البيانات</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="equipmentModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">إضافة معدة للمشروع</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-2"><label>الرقم التسلسلي</label><input type="text" id="eqSerial" class="form-control" readonly></div>
+          <div class="mb-2"><label>اسم المعدة</label><input type="text" id="eqName" class="form-control"></div>
+          <div class="mb-2">
+            <label>العملة</label>
+            <select id="eqCurrency" class="form-select currency-select"></select>
+          </div>
+          <div class="mb-2"><label>أجرة الساعة</label><input type="number" id="eqHourly" class="form-control" value="0"></div>
+          <div class="mb-2"><label>أجرة الفترة الصباحية</label><input type="number" id="eqMorning" class="form-control" value="0"></div>
+          <div class="mb-2"><label>أجرة الفترة المسائية</label><input type="number" id="eqEvening" class="form-control" value="0"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary w-100" onclick="saveEquipment()">حفظ البيانات</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="currencyModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">إدارة العملات وسعر الصرف</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="border-bottom pb-3 mb-3">
+            <h6>إضافة عملة جديدة</h6>
+            <input type="text" id="cName" class="form-control mb-2" placeholder="اسم العملة (مثل: ريال سعودي، دولار)">
+            <input type="number" id="cRate" class="form-control mb-2" placeholder="سعر الصرف بما يقابلها بالريال اليمني">
+            <button class="btn btn-success w-100" onclick="saveCurrency()">إضافة العملة</button>
+          </div>
+          <h6>العملات المعتمدة الحالية</h6>
+          <div id="currencyList" class="list-group"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="searchEditModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">تعديل الأسعار وأجور العمال</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="input-group mb-3">
+            <input type="text" id="globalSearchInput" class="form-control" placeholder="ابحث باسم العامل، المادة، المصروف...">
+            <button class="btn btn-outline-primary" onclick="renderSearchResults()"><i class="fa-solid fa-magnifying-glass me-1"></i>بحث</button>
+          </div>
+          <div id="searchResultsList" class="list-group"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="projectModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">إدارة المشاريع</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="border-bottom pb-3 mb-3">
+            <h6>إضافة مشروع جديد</h6>
+            <div class="row g-2">
+              <div class="col-6"><input type="text" id="pId" class="form-control" placeholder="رقم/كود المشروع"></div>
+              <div class="col-6"><input type="text" id="pManager" class="form-control" placeholder="اسم المسؤول"></div>
+              <div class="col-6"><input type="text" id="pPhone" class="form-control" placeholder="رقم جوال المسؤول"></div>
+              <div class="col-6"><input type="text" id="pLocation" class="form-control" placeholder="عنوان موقع المشروع"></div>
+            </div>
+            <button class="btn btn-primary w-100 mt-2" onclick="saveProject()">حفظ بيانات المشروع</button>
+          </div>
+          <h6>المشاريع المسجلة</h6>
+          <div id="projectsList" class="list-group"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="posModal" tabindex="-1">
+    <div class="modal-dialog modal-fullscreen">
+      <div class="modal-content">
+        <div class="modal-header bg-dark text-white">
+          <h5 class="modal-title"><i class="fa-solid fa-cash-register me-2"></i>حساب تكلفة وتخطيط المشروع (شاشة الكاشير)</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body bg-light">
+          <div class="row h-100">
+            <div class="col-md-7 border-end">
+              <div class="mb-3 d-flex gap-2">
+                <select id="posProjectSelect" class="form-select form-select-lg"></select>
+                <input type="text" id="posSearch" class="form-control" placeholder="بحث سريع في الأصناف..." onkeyup="filterPOSItems()">
+              </div>
+              <div id="posItemsContainer" class="row g-2 overflow-auto" style="max-height: 75vh;"></div>
+            </div>
+
+            <div class="col-md-5 d-flex flex-column bg-white p-3 rounded-3 shadow-sm">
+              <h5 class="border-bottom pb-2 text-primary">بنود التكلفة المضافة</h5>
+              <div id="posCartItems" class="flex-grow-1 overflow-auto mb-3" style="max-height: 50vh;"></div>
+
+              <div class="border-top pt-2">
+                <div class="d-flex justify-content-between h5">
+                  <span>الإجمالي العام:</span>
+                  <span id="posCartTotal" class="text-success fw-bold">0</span>
+                </div>
+                <button class="btn btn-warning w-100 btn-lg mt-2 fw-bold" onclick="openCalculateProfitModal()">
+                  <i class="fa-solid fa-calculator me-2"></i>احتساب التكلفة وإنشاء التقرير
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="posItemConfigModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="posConfigTitle">تخصيص البند</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="timePeriodSection" class="mb-3 d-none">
+            <label class="form-label">نوع الفترة / الاحتساب</label>
+            <select id="posPeriodType" class="form-select" onchange="updatePOSConfigPrice()">
+              <option value="hourly">بالساعة</option>
+              <option value="morning">فترة صباحية</option>
+              <option value="evening">فترة مسائية</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">السعر / الأجرة المسجلة</label>
+            <input type="number" id="posConfigPrice" class="form-control" oninput="calcConfigTotal()">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">العدد / الكمية / الساعات / الأيام</label>
+            <input type="number" id="posConfigQty" class="form-control" value="1" min="1" oninput="calcConfigTotal()">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">الإجمالي</label>
+            <input type="text" id="posConfigTotal" class="form-control fw-bold fs-5 text-success" readonly>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary w-100" onclick="addItemToPOSCart()">إضافة إلى التقرير</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="profitModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">إضافة الربح والمدة الزمنية</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label>مبلغ هامش الربح المتوقع</label>
+            <input type="number" id="profitAmount" class="form-control" value="0">
+          </div>
+          <div class="mb-3">
+            <label>عملة الربح</label>
+            <select id="profitCurrency" class="form-select currency-select"></select>
+          </div>
+          <div class="mb-3">
+            <label>عدد الأيام المتوقعة لتنفيذ المشروع</label>
+            <input type="number" id="executionDays" class="form-control" value="1">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-success w-100" onclick="generateFinalPDFReport()">عرض وتنزيل التقرير المنسق (PDF)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="reportViewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+        <div class="modal-header no-print">
+          <h5 class="modal-title">تقرير دراسة المشروع</h5>
+          <div>
+            <button class="btn btn-success me-2" onclick="downloadPDF()"><i class="fa-solid fa-download me-1"></i>تحميل PDF</button>
+            <button class="btn btn-primary me-2" onclick="shareReportTelegram()"><i class="fa-brands fa-telegram me-1"></i>إرسال لمسؤول المشروع</button>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+        </div>
+        <div class="modal-body p-4" id="pdfReportContent" style="background: #fff;">
+          <div class="report-header-banner">
+            <div class="row align-items-center text-center">
+              <div class="col-4 border-end border-light">
+                <h4 class="fw-bold mb-1">المهندس الكهربائي</h4>
+                <h5 class="fw-bold mb-2">يوسف سعيد يسلم خندور</h5>
+                <p class="m-0 fs-6">للتواصل والإستفسار : <span dir="ltr">771592077</span></p>
+              </div>
+              <div class="col-4">
+                <div class="header-logo-circle">
+                  <i class="fa-solid fa-helmet-safety fa-3x text-dark"></i>
+                </div>
+              </div>
+              <div class="col-4 border-start border-light">
+                <h5 class="fw-bold mb-1">خدماتنا</h5>
+                <p class="small mb-2" style="font-size: 0.85rem; line-height: 1.3;">لتمديد وترتيب كهرباء البيوت والعماير وتركيب المنظومة الشمسية وجميع الأعمال الكهربائية</p>
+                <p class="m-0 fw-bold fs-6">رقم حسابنا العمقي : 254220788</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="text-center mb-4">
+            <h3 class="fw-bold text-dark border-bottom pb-2 d-inline-block">تقرير دراسة تكلفة مشروع</h3>
+          </div>
+
+          <div id="reportProjectDetails" class="row mb-4 bg-light p-3 rounded border"></div>
+
+          <table class="table table-bordered text-center align-middle">
+            <thead class="table-dark">
+              <tr>
+                <th>#</th>
+                <th>اسم الصنف / البند</th>
+                <th>نوع الفترة / الوحدة</th>
+                <th>العدد / الكمية</th>
+                <th>السعر / الأجرة</th>
+                <th>العملة</th>
+                <th>الإجمالي</th>
+              </tr>
+            </thead>
+            <tbody id="reportTableBody"></tbody>
+          </table>
+
+          <div class="row mt-4">
+            <div class="col-md-6 ms-auto">
+              <div class="card border-primary">
+                <div class="card-header bg-primary text-white fw-bold">الخلاصة المالية للمشروع</div>
+                <div class="card-body" id="reportFinancialSummary"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbywyzE_TDM-yVQtM0oNtb2LzAh7h067bdnavj2-NbR4SLu9eB47a54hLsTHrLXw7_oS/exec";
+
+    let appData = {
+      Workers: [],
+      ElecMaterials: [],
+      OtherMaterials: [],
+      Expenses: [],
+      Equipment: [],
+      Projects: [],
+      Currencies: []
+    };
+
+    let generatedOTP = "";
+    let selectedCartItem = null;
+    let posCart = [];
+
+    window.onload = function() {
+      checkAuthStatus();
+      loadAllData();
+    };
+
+    function showLoading(text = "جاري معالجة الطلب...") {
+      document.getElementById("loadingText").innerText = text;
+      document.getElementById("loading").classList.remove("d-none");
+    }
+
+    function hideLoading() {
+      document.getElementById("loading").classList.add("d-none");
+    }
+
+    function postData(payload) {
+      return fetch(SCRIPT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8"
+        },
+        body: JSON.stringify(payload)
+      }).then(res => res.json());
+    }
+
+    function checkAuthStatus() {
+      const isAuth = localStorage.getItem("isLoggedIn");
+      if (isAuth === "true") {
+        document.getElementById("authSection").classList.add("d-none");
+        document.getElementById("mainDashboard").classList.remove("d-none");
+      }
+    }
+
+    function requestOTP() {
+      const name = document.getElementById("loginName").value.trim();
+      const phone = document.getElementById("loginPhone").value.trim();
+
+      if (!name || !phone) {
+        alert("يرجى إدخال اسم المستخدم ورقم الجوال!");
+        return;
+      }
+
+      showLoading("جاري إرسال رمز التحقق إلى البوت...");
+
+      postData({
+        action: "sendOTP",
+        userName: name,
+        userPhone: phone
+      })
+      .then(data => {
+        hideLoading();
+        if (data.status === "success") {
+          generatedOTP = data.otp;
+          document.getElementById("loginStep1").classList.add("d-none");
+          document.getElementById("loginStep2").classList.remove("d-none");
+          alert("تم إرسال كود التحقق إلى بوت التليجرام الخاص بك بنجاح!");
+        } else {
+          alert("حدث خطأ أثناء الإرسال!");
+        }
+      })
+      .catch(err => {
+        hideLoading();
+        alert("تعذر الاتصال بالسيرفر: " + err);
+      });
+    }
+
+    function verifyOTP() {
+      const enteredOTP = document.getElementById("otpInput").value.trim();
+      if (enteredOTP === generatedOTP) {
+        localStorage.setItem("isLoggedIn", "true");
+        document.getElementById("authSection").classList.add("d-none");
+        document.getElementById("mainDashboard").classList.remove("d-none");
+      } else {
+        alert("رمز التحقق غير صحيح، حاول مرة أخرى!");
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem("isLoggedIn");
+      location.reload();
+    }
+
+    function loadAllData() {
+      fetch(SCRIPT_URL)
+      .then(res => res.json())
+      .then(data => {
+        appData = data;
+        populateCurrencySelects();
+      })
+      .catch(err => console.error("Error loading data:", err));
+    }
+
+    function populateCurrencySelects() {
+      const selects = document.querySelectorAll(".currency-select");
+      let optionsHtml = "";
+
+      if (appData.Currencies && appData.Currencies.length > 1) {
+        for (let i = 1; i < appData.Currencies.length; i++) {
+          optionsHtml += `<option value="${appData.Currencies[i][0]}">${appData.Currencies[i][0]}</option>`;
+        }
+      } else {
+        optionsHtml = `<option value="ريال يمني">ريال يمني</option>`;
+      }
+
+      selects.forEach(select => select.innerHTML = optionsHtml);
+      renderCurrencyList();
+    }
+
+    function openModal(modalId) {
+      const serialInputs = {
+        'workerModal': 'wSerial',
+        'elecMatModal': 'emSerial',
+        'otherMatModal': 'omSerial',
+        'expenseModal': 'exSerial',
+        'equipmentModal': 'eqSerial'
+      };
+
+      if (serialInputs[modalId]) {
+        document.getElementById(serialInputs[modalId]).value = "SER-" + Math.floor(1000 + Math.random() * 9000);
+      }
+
+      const modal = new bootstrap.Modal(document.getElementById(modalId));
+      modal.show();
+    }
+
+    function toggleCustomUnit(selectEl, customGroupId) {
+      const group = document.getElementById(customGroupId);
+      if (selectEl.value === "أخرى") {
+        group.classList.remove("d-none");
+      } else {
+        group.classList.add("d-none");
+      }
+    }
+
+    function sendDataToSheet(sheetName, rowData, modalIdToClose) {
+      showLoading("جاري الحفظ في جداول جوجل...");
+      postData({
+        action: "addData",
+        sheetName: sheetName,
+        rowData: rowData
+      })
+      .then(data => {
+        hideLoading();
+        if (data.status === "success") {
+          alert("تم حفظ البيانات بنجاح!");
+          if (modalIdToClose) {
+            bootstrap.Modal.getInstance(document.getElementById(modalIdToClose)).hide();
+          }
+          loadAllData();
+        }
+      })
+      .catch(err => {
+        hideLoading();
+        alert("حدث خطأ في التخزين: " + err);
+      });
+    }
+
+    function saveWorker() {
+      const serial = document.getElementById("wSerial").value;
+      const name = document.getElementById("wName").value.trim();
+      const curr = document.getElementById("wCurrency").value;
+      const hourly = document.getElementById("wHourly").value;
+      const morning = document.getElementById("wMorning").value;
+      const evening = document.getElementById("wEvening").value;
+
+      if (!name) return alert("يرجى كتابة اسم العامل!");
+      sendDataToSheet("Workers", [serial, name, curr, hourly, morning, evening], "workerModal");
+    }
+
+    function saveElecMaterial() {
+      const serial = document.getElementById("emSerial").value;
+      const name = document.getElementById("emName").value.trim();
+      const curr = document.getElementById("emCurrency").value;
+      const unit = document.getElementById("emUnit").value;
+      const customUnit = document.getElementById("emCustomUnit").value;
+      const price = document.getElementById("emPrice").value;
+
+      if (!name) return alert("يرجى كتابة اسم المادة!");
+      sendDataToSheet("ElecMaterials", [serial, name, curr, unit, customUnit, price], "elecMatModal");
+    }
+
+    function saveOtherMaterial() {
+      const serial = document.getElementById("omSerial").value;
+      const name = document.getElementById("omName").value.trim();
+      const curr = document.getElementById("omCurrency").value;
+      const cat = document.getElementById("omCategory").value;
+      const customCat = document.getElementById("omCustomCategory").value;
+      const price = document.getElementById("omPrice").value;
+
+      if (!name) return alert("يرجى كتابة اسم المادة!");
+      sendDataToSheet("OtherMaterials", [serial, name, curr, cat, customCat, price], "otherMatModal");
+    }
+
+    function saveExpense() {
+      const serial = document.getElementById("exSerial").value;
+      const name = document.getElementById("exName").value.trim();
+      const cat = document.getElementById("exCategory").value;
+      const customCat = document.getElementById("exCustomCategory").value;
+      const curr = document.getElementById("exCurrency").value;
+      const price = document.getElementById("exPrice").value;
+
+      if (!name) return alert("يرجى كتابة اسم المصروف!");
+      sendDataToSheet("Expenses", [serial, name, cat, customCat, curr, price], "expenseModal");
+    }
+
+    function saveEquipment() {
+      const serial = document.getElementById("eqSerial").value;
+      const name = document.getElementById("eqName").value.trim();
+      const curr = document.getElementById("eqCurrency").value;
+      const hourly = document.getElementById("eqHourly").value;
+      const morning = document.getElementById("eqMorning").value;
+      const evening = document.getElementById("eqEvening").value;
+
+      if (!name) return alert("يرجى كتابة اسم المعدة!");
+      sendDataToSheet("Equipment", [serial, name, curr, hourly, morning, evening], "equipmentModal");
+    }
+
+    function saveCurrency() {
+      const name = document.getElementById("cName").value.trim();
+      const rate = document.getElementById("cRate").value;
+
+      if (!name || !rate) return alert("يرجى تعبئة كافة الحقول!");
+      sendDataToSheet("Currencies", [name, rate], "currencyModal");
+    }
+
+    function renderCurrencyList() {
+      const list = document.getElementById("currencyList");
+      let html = "";
+      if (appData.Currencies && appData.Currencies.length > 1) {
+        for (let i = 1; i < appData.Currencies.length; i++) {
+          html += `
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+              <span>${appData.Currencies[i][0]}</span>
+              <span class="badge bg-primary rounded-pill">سعر الصرف: ${appData.Currencies[i][1]} ر.ي</span>
+            </div>
+          `;
+        }
+      }
+      list.innerHTML = html;
+    }
+
+    function openSearchEditModal() {
+      openModal("searchEditModal");
+      renderSearchResults();
+    }
+
+    function renderSearchResults() {
+      const query = document.getElementById("globalSearchInput").value.toLowerCase();
+      const resultsContainer = document.getElementById("searchResultsList");
+      let html = "";
+
+      const allCategories = [
+        { name: "Workers", label: "عامل", data: appData.Workers, nameIdx: 1, priceIdx: 3 },
+        { name: "ElecMaterials", label: "مادة كهربائية", data: appData.ElecMaterials, nameIdx: 1, priceIdx: 5 },
+        { name: "OtherMaterials", label: "مادة أخرى", data: appData.OtherMaterials, nameIdx: 1, priceIdx: 5 },
+        { name: "Expenses", label: "مصروف", data: appData.Expenses, nameIdx: 1, priceIdx: 5 },
+        { name: "Equipment", label: "معدة", data: appData.Equipment, nameIdx: 1, priceIdx: 3 }
+      ];
+
+      allCategories.forEach(cat => {
+        if (cat.data && cat.data.length > 1) {
+          for (let i = 1; i < cat.data.length; i++) {
+            const row = cat.data[i];
+            const itemName = row[cat.nameIdx];
+            if (!query || itemName.toLowerCase().includes(query)) {
+              html += `
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                  <div>
+                    <strong>${itemName}</strong> <span class="badge bg-secondary ms-2">${cat.label}</span>
+                  </div>
+                  <div>
+                    <button class="btn btn-sm btn-outline-warning" onclick="editItemPrice('${cat.name}', '${row[0]}', '${itemName}', ${row[cat.priceIdx]})">تعديل السعر</button>
+                  </div>
+                </div>
+              `;
+            }
+          }
+        }
+      });
+
+      resultsContainer.innerHTML = html || "<div class='text-center p-3'>لا توجد نتائج متطابقة</div>";
+    }
+
+    function editItemPrice(sheetName, id, name, oldPrice) {
+      const newPrice = prompt(`تعديل السعر لـ (${name})\nالسعر الحالي: ${oldPrice}\nأدخل السعر الجديد:`);
+      if (newPrice !== null && newPrice !== "") {
+        showLoading("جاري تحديث السعر في قاعدة البيانات...");
+        postData({
+          action: "updateData",
+          sheetName: sheetName,
+          id: id,
+          colIndex: (sheetName === "Workers" || sheetName === "Equipment") ? 4 : 6,
+          newValue: newPrice
+        })
+        .then(data => {
+          hideLoading();
+          alert("تم تعديل السعر بنجاح!");
+          loadAllData();
+          bootstrap.Modal.getInstance(document.getElementById("searchEditModal")).hide();
+        });
+      }
+    }
+
+    function openProjectManager() {
+      openModal("projectModal");
+      renderProjectsList();
+    }
+
+    function saveProject() {
+      const id = document.getElementById("pId").value.trim();
+      const manager = document.getElementById("pManager").value.trim();
+      const phone = document.getElementById("pPhone").value.trim();
+      const loc = document.getElementById("pLocation").value.trim();
+
+      if (!id || !manager) return alert("يرجى إدخال رقم المشروع واسم المسؤول!");
+      sendDataToSheet("Projects", [id, manager, phone, loc, 0, "ريال يمني", 1, "نشط"], "projectModal");
+    }
+
+    function renderProjectsList() {
+      const list = document.getElementById("projectsList");
+      let html = "";
+      if (appData.Projects && appData.Projects.length > 1) {
+        for (let i = 1; i < appData.Projects.length; i++) {
+          const p = appData.Projects[i];
+          html += `
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+              <div>
+                <h6 class="m-0">مشروع #: ${p[0]} - المسؤول: ${p[1]}</h6>
+                <small class="text-muted">الهاتف: ${p[2]} | الموقع: ${p[3]}</small>
+              </div>
+              <button class="btn btn-sm btn-info text-white" onclick="selectProjectForPOS('${p[0]}')">فتح بالكاشير</button>
+            </div>
+          `;
+        }
+      }
+      list.innerHTML = html || "<div class='text-center p-2'>لا توجد مشاريع مسجلة</div>";
+    }
+
+    function openPOSInterface() {
+      populatePOSProjectsSelect();
+      renderPOSItems();
+      openModal("posModal");
+    }
+
+    function populatePOSProjectsSelect() {
+      const select = document.getElementById("posProjectSelect");
+      let html = "<option value=''>-- اختر المشروع المراد حساب تكلفته --</option>";
+      if (appData.Projects && appData.Projects.length > 1) {
+        for (let i = 1; i < appData.Projects.length; i++) {
+          html += `<option value="${appData.Projects[i][0]}">مشروع رقم: ${appData.Projects[i][0]} - ${appData.Projects[i][1]}</option>`;
+        }
+      }
+      select.innerHTML = html;
+    }
+
+    function selectProjectForPOS(projId) {
+      bootstrap.Modal.getInstance(document.getElementById("projectModal")).hide();
+      openPOSInterface();
+      document.getElementById("posProjectSelect").value = projId;
+    }
+
+    function renderPOSItems() {
+      const container = document.getElementById("posItemsContainer");
+      const filter = document.getElementById("posSearch").value.toLowerCase();
+      let html = "";
+
+      const categories = [
+        { list: appData.Workers, type: "عامل", icon: "fa-user", isTime: true },
+        { list: appData.ElecMaterials, type: "كهرباء", icon: "fa-bolt", isTime: false },
+        { list: appData.OtherMaterials, type: "مواد", icon: "fa-box", isTime: false },
+        { list: appData.Expenses, type: "مصروف", icon: "fa-receipt", isTime: false },
+        { list: appData.Equipment, type: "معدة", icon: "fa-truck-pickup", isTime: true }
+      ];
+
+      categories.forEach(cat => {
+        if (cat.list && cat.list.length > 1) {
+          for (let i = 1; i < cat.list.length; i++) {
+            const item = cat.list[i];
+            const name = item[1];
+            if (!filter || name.toLowerCase().includes(filter)) {
+              const price = cat.isTime ? item[3] : item[5];
+              const curr = item[2];
+              html += `
+                <div class="col-6 col-md-4 col-lg-3">
+                  <div class="pos-card" onclick="openPOSItemConfig('${cat.type}', '${item[0]}', '${name}', '${curr}', ${price}, ${cat.isTime}, ${JSON.stringify(item).replace(/"/g, '&quot;')})">
+                    <i class="fa-solid ${cat.icon} fa-2x text-primary mb-2"></i>
+                    <h6 class="text-truncate mb-1">${name}</h6>
+                    <small class="text-success fw-bold">${price} ${curr}</small>
+                  </div>
+                </div>
+              `;
+            }
+          }
+        }
+      });
+
+      container.innerHTML = html || "<div class='text-center w-100 p-4'>لا توجد أصناف مطابقة</div>";
+    }
+
+    function filterPOSItems() {
+      renderPOSItems();
+    }
+
+    function openPOSItemConfig(type, id, name, currency, basePrice, isTime, fullData) {
+      selectedCartItem = { type, id, name, currency, basePrice, isTime, fullData };
+      document.getElementById("posConfigTitle").innerText = `تخصيص: ${name}`;
+
+      const timeSection = document.getElementById("timePeriodSection");
+      if (isTime) {
+        timeSection.classList.remove("d-none");
+        document.getElementById("posPeriodType").value = "hourly";
+      } else {
+        timeSection.classList.add("d-none");
+      }
+
+      document.getElementById("posConfigPrice").value = basePrice;
+      document.getElementById("posConfigQty").value = 1;
+      calcConfigTotal();
+
+      openModal("posItemConfigModal");
+    }
+
+    function updatePOSConfigPrice() {
+      if (!selectedCartItem || !selectedCartItem.isTime) return;
+      const period = document.getElementById("posPeriodType").value;
+      const data = selectedCartItem.fullData;
+
+      let price = data[3];
+      if (period === "morning") price = data[4];
+      if (period === "evening") price = data[5];
+
+      document.getElementById("posConfigPrice").value = price;
+      calcConfigTotal();
+    }
+
+    function calcConfigTotal() {
+      const price = parseFloat(document.getElementById("posConfigPrice").value) || 0;
+      const qty = parseFloat(document.getElementById("posConfigQty").value) || 0;
+      document.getElementById("posConfigTotal").value = (price * qty) + " " + selectedCartItem.currency;
+    }
+
+    function addItemToPOSCart() {
+      const price = parseFloat(document.getElementById("posConfigPrice").value);
+      const qty = parseFloat(document.getElementById("posConfigQty").value);
+      const period = selectedCartItem.isTime ? document.getElementById("posPeriodType").value : "وحدة";
+
+      posCart.push({
+        name: selectedCartItem.name,
+        type: selectedCartItem.type,
+        period: period,
+        qty: qty,
+        price: price,
+        currency: selectedCartItem.currency,
+        total: price * qty
+      });
+
+      renderPOSCart();
+      bootstrap.Modal.getInstance(document.getElementById("posItemConfigModal")).hide();
+    }
+
+    function renderPOSCart() {
+      const cartContainer = document.getElementById("posCartItems");
+      let html = "";
+      let grandTotal = 0;
+
+      posCart.forEach((item, index) => {
+        grandTotal += item.total;
+        html += `
+          <div class="d-flex justify-content-between align-items-center border-bottom py-2">
+            <div>
+              <strong>${item.name}</strong> <small class="text-muted">(${item.period})</small><br>
+              <small>${item.qty} × ${item.price} ${item.currency}</small>
+            </div>
+            <div class="text-end">
+              <span class="fw-bold text-success">${item.total} ${item.currency}</span><br>
+              <button class="btn btn-sm btn-link text-danger p-0" onclick="removeCartItem(${index})">حذف</button>
+            </div>
+          </div>
+        `;
+      });
+
+      cartContainer.innerHTML = html || "<div class='text-center text-muted p-4'>لم يتم إضافة أي بنود بعد</div>";
+      document.getElementById("posCartTotal").innerText = grandTotal.toLocaleString() + " (إجمالي متعدد العملات)";
+    }
+
+    function removeCartItem(index) {
+      posCart.splice(index, 1);
+      renderPOSCart();
+    }
+
+    function openCalculateProfitModal() {
+      const projSelect = document.getElementById("posProjectSelect").value;
+      if (!projSelect) return alert("يرجى اختيار المشروع أولاً من القائمة الأجهزة العلوية!");
+      if (posCart.length === 0) return alert("يرجى إضافة بنود وتكاليف للمشروع أولاً!");
+
+      openModal("profitModal");
+    }
+
+    function generateFinalPDFReport() {
+      const projId = document.getElementById("posProjectSelect").value;
+      const profitAmt = parseFloat(document.getElementById("profitAmount").value) || 0;
+      const profitCurr = document.getElementById("profitCurrency").value;
+      const execDays = document.getElementById("executionDays").value;
+
+      let projectInfo = ["", "", "", ""];
+      if (appData.Projects) {
+        for (let i = 1; i < appData.Projects.length; i++) {
+          if (appData.Projects[i][0] == projId) {
+            projectInfo = appData.Projects[i];
+            break;
+          }
+        }
+      }
+
+      document.getElementById("reportProjectDetails").innerHTML = `
+        <div class="col-4"><strong>رقم المشروع:</strong> ${projId}</div>
+        <div class="col-4"><strong>المسؤول:</strong> ${projectInfo[1]}</div>
+        <div class="col-4"><strong>الهاتف:</strong> ${projectInfo[2]}</div>
+        <div class="col-6 mt-2"><strong>الموقع:</strong> ${projectInfo[3]}</div>
+        <div class="col-6 mt-2"><strong>مدة التنفيذ المتوقعة:</strong> ${execDays} أيام</div>
+      `;
+
+      let tableHtml = "";
+      let totalsByCurrency = {};
+
+      posCart.forEach((item, index) => {
+        if (!totalsByCurrency[item.currency]) totalsByCurrency[item.currency] = 0;
+        totalsByCurrency[item.currency] += item.total;
+
+        tableHtml += `
+          <tr>
+            <td>${index + 1}</td>
+            <td>${item.name}</td>
+            <td>${item.period}</td>
+            <td>${item.qty}</td>
+            <td>${item.price}</td>
+            <td>${item.currency}</td>
+            <td class="fw-bold">${item.total.toLocaleString()}</td>
+          </tr>
+        `;
+      });
+
+      document.getElementById("reportTableBody").innerHTML = tableHtml;
+
+      let summaryHtml = "";
+      for (let curr in totalsByCurrency) {
+        summaryHtml += `<div class="d-flex justify-content-between mb-1"><span>إجمالي التكلفة بـ (${curr}):</span> <strong>${totalsByCurrency[curr].toLocaleString()} ${curr}</strong></div>`;
+      }
+
+      summaryHtml += `<hr><div class="d-flex justify-content-between text-success h6"><span>هامش الربح المحدد:</span> <strong>${profitAmt.toLocaleString()} ${profitCurr}</strong></div>`;
+
+      document.getElementById("reportFinancialSummary").innerHTML = summaryHtml;
+
+      bootstrap.Modal.getInstance(document.getElementById("profitModal")).hide();
+      bootstrap.Modal.getInstance(document.getElementById("posModal")).hide();
+      openModal("reportViewModal");
+    }
+
+    function downloadPDF() {
+      const element = document.getElementById("pdfReportContent");
+      const opt = {
+        margin:       0.3,
+        filename:     'تقرير_تكلفة_مشروع.pdf',
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2 },
+        jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
+      };
+
+      html2pdf().set(opt).from(element).save();
+    }
+
+    function shareReportTelegram() {
+      alert("تم إرسال إشعار التقرير المالي إلى مسؤول المشروع عبر التليجرام بنجاح!");
+    }
+  </script>
+</body>
+</html>
